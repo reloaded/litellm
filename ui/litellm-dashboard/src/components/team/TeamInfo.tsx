@@ -808,6 +808,8 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
                 />
 
                 <InheritedPermissionsView
+                  accessToken={accessToken}
+                  emptyStateHint="Assign this team to an Access Group (Access Groups page) to grant its MCP servers, models, and agents to every key in the team."
                   sources={[
                     {
                       label: "via Access Groups",
