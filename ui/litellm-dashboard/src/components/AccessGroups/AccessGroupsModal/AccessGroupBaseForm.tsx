@@ -1,9 +1,10 @@
 import { useAgents } from "@/app/(dashboard)/hooks/agents/useAgents";
 import { useMCPServers } from "@/app/(dashboard)/hooks/mcpServers/useMCPServers";
+import { useTeams } from "@/app/(dashboard)/hooks/teams/useTeams";
 import { ModelSelect } from "@/components/ModelSelect/ModelSelect";
 import type { FormInstance } from "antd";
 import { Form, Input, Select, Space, Tabs } from "antd";
-import { BotIcon, InfoIcon, LayersIcon, ServerIcon } from "lucide-react";
+import { BotIcon, InfoIcon, LayersIcon, ServerIcon, UsersIcon } from "lucide-react";
 
 const { TextArea } = Input;
 
@@ -13,6 +14,7 @@ export interface AccessGroupFormValues {
   modelIds: string[];
   mcpServerIds: string[];
   agentIds: string[];
+  teamIds: string[];
 }
 
 interface AccessGroupBaseFormProps {
@@ -26,9 +28,11 @@ export function AccessGroupBaseForm({
 }: AccessGroupBaseFormProps) {
   const { data: agentsData } = useAgents();
   const { data: mcpServersData } = useMCPServers();
+  const { data: teamsData } = useTeams();
 
   const agents = agentsData?.agents ?? [];
   const mcpServers = mcpServersData ?? [];
+  const teams = teamsData ?? [];
   const items = [
     {
       key: "1",
@@ -140,6 +144,36 @@ export function AccessGroupBaseForm({
         </div>
       ),
     },
+    {
+      key: "5",
+      label: (
+        <Space align="center" size={4}>
+          <UsersIcon size={16} />
+          Teams
+        </Space>
+      ),
+      children: (
+        <div style={{ paddingTop: 16 }}>
+          <Form.Item
+            name="teamIds"
+            label="Allowed Teams"
+            help="Teams bound here are written to the access group's assigned_team_ids — the reciprocal of the Team Settings → Access Groups field. This is what grants the group's MCP servers / models / agents to the team."
+          >
+            <Select
+              mode="multiple"
+              placeholder="Select teams"
+              style={{ width: "100%" }}
+              optionFilterProp="label"
+              allowClear
+              options={teams.map((team) => ({
+                label: team.team_alias || team.team_id,
+                value: team.team_id,
+              }))}
+            />
+          </Form.Item>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -151,6 +185,7 @@ export function AccessGroupBaseForm({
         modelIds: [],
         mcpServerIds: [],
         agentIds: [],
+        teamIds: [],
       }}
     >
       <Tabs defaultActiveKey="1" items={items} />

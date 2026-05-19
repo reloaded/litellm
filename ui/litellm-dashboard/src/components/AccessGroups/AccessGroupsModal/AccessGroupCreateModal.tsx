@@ -34,6 +34,7 @@ export function AccessGroupCreateModal({
           access_model_names: values.modelIds,
           access_mcp_server_ids: values.mcpServerIds,
           access_agent_ids: values.agentIds,
+          assigned_team_ids: values.teamIds,
         };
 
         createMutation.mutate(params, {
