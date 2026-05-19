@@ -5,7 +5,32 @@ ARG LITELLM_BUILD_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:3258be472764337fd13
 ARG LITELLM_RUNTIME_IMAGE=cgr.dev/chainguard/wolfi-base@sha256:3258be472764337fd13095bcbb3182da170243b5819fd67ad4c0754590588b31
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a
 
+# Admin UI builder base — official Node, digest-pinned. Transient build
+# stage only: it emits the architecture-independent static dashboard
+# export; the shipped runtime image stays chainguard/wolfi. Next 16
+# requires Node >=20.9, so a known-good Node major is pinned here rather
+# than relying on whatever `apk add nodejs` resolves to.
+ARG NODE_BUILD_IMAGE=node:22-bookworm-slim@sha256:689c11043dad91472750cd824c97dd5e2318e9dd6f954e492fe7af0135d33ceb
+
 FROM $UV_IMAGE AS uvbin
+
+# Admin UI builder — runs on the NATIVE build platform ($BUILDPLATFORM),
+# never emulated per-arch under QEMU. The dashboard is a Next.js
+# `output: "export"` static bundle: pure HTML/CSS/JS, architecture-
+# independent, so it is built once here and copied into every target
+# arch. This deliberately REPLACES upstream's docker/build_admin_ui.sh,
+# which only builds/themes the UI when enterprise/enterprise_ui/
+# enterprise_colors.json is present and otherwise `exit 0`s — shipping
+# the stale committed prebuilt litellm/proxy/_experimental/out and
+# silently dropping every reloaded dashboard change.
+FROM --platform=$BUILDPLATFORM $NODE_BUILD_IMAGE AS uibuilder
+WORKDIR /ui
+# Lockfile-only layer first so `npm ci` caches unless deps change.
+COPY ui/litellm-dashboard/package.json ui/litellm-dashboard/package-lock.json ./
+RUN npm ci
+COPY ui/litellm-dashboard/ ./
+# next.config.mjs sets output:"export" → `next build` emits ./out
+RUN npm run build && test -d ./out
 
 # Builder stage
 FROM $LITELLM_BUILD_IMAGE AS builder
@@ -47,8 +72,12 @@ RUN uv sync --frozen --no-install-project --no-install-workspace --no-default-gr
 # Copy full source tree
 COPY . .
 
-# Build Admin UI before final sync
-RUN sed -i 's/\r$//' docker/build_admin_ui.sh && chmod +x docker/build_admin_ui.sh && ./docker/build_admin_ui.sh
+# Ship the dashboard we built from source (uibuilder stage), replacing
+# the stale committed prebuilt export. Upstream's docker/build_admin_ui.sh
+# is intentionally bypassed — it no-ops without enterprise colors and
+# would otherwise leave the stale bundle in place.
+RUN rm -rf litellm/proxy/_experimental/out
+COPY --from=uibuilder /ui/out litellm/proxy/_experimental/out
 
 # Install project and workspace packages (fast - deps already cached)
 RUN uv sync --frozen --no-default-groups --no-editable \
