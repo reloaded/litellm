@@ -4,14 +4,16 @@ name: reloaded-image
 # from source — so all merged backend + dashboard (Next.js) changes ship.
 #
 # Tag scheme (locked): <upstream-tag>-<our-semver>, e.g.
-#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.1  (+ :latest)
+#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.2  (+ :latest)
 # The upstream base tag stays in the image tag for provenance; our semver
 # is the downstream version line.
 #
 # Platforms: linux/amd64 + linux/arm64 (required — deployment targets
-# include both). The from-source multi-arch build (Python + Node UI;
-# arm64 via QEMU) is slow; a generous job timeout + gha cache keep it
-# reliable.
+# include both). The Next.js dashboard is a static `output: "export"`
+# bundle, so the Dockerfile's uibuilder stage builds it ONCE on the
+# native build platform ($BUILDPLATFORM) and copies it into both arches
+# — no emulated UI build. Only the Python venv builds per-arch (arm64
+# via QEMU); a generous job timeout + gha cache keep it reliable.
 
 on:
   push:
@@ -23,7 +25,7 @@ on:
       reloaded_version:
         description: "Our semver (suffix after the upstream tag)"
         required: true
-        default: "1.0.1"
+        default: "1.0.2"
 
 permissions:
   contents: read
@@ -32,7 +34,7 @@ permissions:
 env:
   IMAGE: ghcr.io/reloaded/litellm
   UPSTREAM_TAG: v1.83.14-stable.patch.3
-  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.1' }}
+  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.2' }}
   PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
