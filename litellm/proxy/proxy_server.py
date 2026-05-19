@@ -945,6 +945,32 @@ async def proxy_startup_event(app: FastAPI):  # noqa: PLR0915
         ## SYNC UI SETTINGS ##
         await ProxyStartupEvent._sync_ui_settings_to_general_settings()
 
+        ## RECONCILE TEAM <-> ACCESS-GROUP RECIPROCAL ASSIGNMENTS ##
+        # One-time idempotent, non-destructive backfill: ensure every team's
+        # access_group_ids is reflected in each access group's
+        # assigned_team_ids. Bindings created from the team side (Team
+        # Settings UI) before the reciprocal write existed otherwise grant
+        # zero MCP under the upstream anti-spoof guard. Fail-soft.
+        try:
+            from litellm.proxy.management_endpoints.access_group_endpoints import (
+                reconcile_team_access_group_assignments,
+            )
+
+            _recon_updated = await reconcile_team_access_group_assignments(
+                prisma_client
+            )
+            if _recon_updated:
+                verbose_proxy_logger.info(
+                    "Reconciled team<->access-group reciprocal assignments: "
+                    "%s access-group row(s) updated",
+                    _recon_updated,
+                )
+        except Exception as e:
+            verbose_proxy_logger.warning(
+                "team<->access-group reciprocal reconciliation skipped: %s",
+                str(e),
+            )
+
     # Start background health checks AFTER models are loaded and index is built
     if use_background_health_checks:
         asyncio.create_task(

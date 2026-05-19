@@ -1150,6 +1150,25 @@ async def new_team(  # noqa: PLR0915
             include={"litellm_model_table": True},  # type: ignore
         )
 
+        # Reciprocal sync (team -> access group): keep each referenced access
+        # group's assigned_team_ids in sync so the MCP auth anti-spoof guard
+        # is satisfied for team-side bindings. Fail-soft.
+        _new_team_ag_ids = getattr(data, "access_group_ids", None) or []
+        if _new_team_ag_ids:
+            try:
+                from litellm.proxy.management_endpoints.access_group_endpoints import (
+                    _sync_add_team_to_access_groups,
+                )
+
+                await _sync_add_team_to_access_groups(
+                    prisma_client.db, _new_team_ag_ids, team_row.team_id
+                )
+            except Exception as e:
+                verbose_proxy_logger.warning(
+                    "team->access-group reciprocal sync (new_team) failed: %s",
+                    str(e),
+                )
+
         ## ADD TEAM ID TO USER TABLE ##
         team_member_add_request = TeamMemberAddRequest(
             team_id=data.team_id,
@@ -1829,6 +1848,37 @@ async def update_team(  # noqa: PLR0915
                 status_code=400,
                 detail={"error": "Team doesn't exist. Got={}".format(team_row)},
             )
+
+        # Reciprocal sync (team -> access group) when access_group_ids changed.
+        # Adds the team to newly-referenced groups' assigned_team_ids and
+        # removes it from de-referenced ones, so the MCP auth anti-spoof
+        # guard tracks Team-Settings edits. Fail-soft.
+        if "access_group_ids" in updated_kv:
+            try:
+                from litellm.proxy.management_endpoints.access_group_endpoints import (
+                    _sync_add_team_to_access_groups,
+                    _sync_remove_team_from_access_groups,
+                )
+
+                _old_ag = set(
+                    getattr(existing_team_row, "access_group_ids", None) or []
+                )
+                _new_ag = set(updated_kv.get("access_group_ids") or [])
+                _added = list(_new_ag - _old_ag)
+                _removed = list(_old_ag - _new_ag)
+                if _added:
+                    await _sync_add_team_to_access_groups(
+                        prisma_client.db, _added, team_row.team_id
+                    )
+                if _removed:
+                    await _sync_remove_team_from_access_groups(
+                        prisma_client.db, _removed, team_row.team_id
+                    )
+            except Exception as e:
+                verbose_proxy_logger.warning(
+                    "team->access-group reciprocal sync (update_team) failed: %s",
+                    str(e),
+                )
 
         verbose_proxy_logger.info(
             "Successfully updated team - %s, info", team_row.team_id
