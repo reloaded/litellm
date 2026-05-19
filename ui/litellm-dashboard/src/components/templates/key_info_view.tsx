@@ -545,21 +545,30 @@ export default function KeyInfoView({
                 const keyTeam = teamsData?.find(
                   (t) => t.team_id === currentKeyData.team_id,
                 );
-                if (!keyTeam) return null;
-                // The Team list type exposes the team's access-group-resolved
+                // Always render the card so the feature is discoverable even
+                // when nothing is inherited (reloaded/litellm issue 8). The
+                // Team list type exposes the team's access-group-resolved
                 // grants (not its direct object_permission — that's on
                 // KeyResponse, not Team, and would need a per-team info
                 // fetch; tracked as a follow-up).
-                return (
-                  <InheritedPermissionsView
-                    sources={[
+                const sources = keyTeam
+                  ? [
                       {
                         label: `via team ${keyTeam.team_alias || keyTeam.team_id}`,
                         mcpServers: keyTeam.access_group_mcp_server_ids || [],
                         models: keyTeam.access_group_models || [],
                         agents: keyTeam.access_group_agent_ids || [],
                       },
-                    ]}
+                    ]
+                  : [];
+                const hint = keyTeam
+                  ? "Assign this key's team to an Access Group (Access Groups page) to grant its MCP servers, models, and agents here."
+                  : "This key is not assigned to a team, so it inherits no team or Access Group permissions. Keys inherit permissions from their team's Access Groups.";
+                return (
+                  <InheritedPermissionsView
+                    accessToken={accessToken}
+                    emptyStateHint={hint}
+                    sources={sources}
                   />
                 );
               })()}
