@@ -1,0 +1,18 @@
+{
+  "//": "reloaded CI typecheck: production source only. Upstream test",
+  "//2": "files (*.test.*, tests/) rely on vitest globals + have fixture",
+  "//3": "drift; upstream gates via `next build` (excludes tests) not a",
+  "//4": "strict full `tsc --noEmit`. extends-exclude replaces parent's,",
+  "//5": "so the parent excludes are repeated here.",
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "e2e_tests",
+    "scripts",
+    "tests",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
+}
