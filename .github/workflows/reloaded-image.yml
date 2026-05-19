@@ -4,16 +4,14 @@ name: reloaded-image
 # from source — so all merged backend + dashboard (Next.js) changes ship.
 #
 # Tag scheme (locked): <upstream-tag>-<our-semver>, e.g.
-#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.0  (+ :latest)
+#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.1  (+ :latest)
 # The upstream base tag stays in the image tag for provenance; our semver
 # is the downstream version line.
 #
-# Platform decision (AFK-autonomous; logged in the PR): linux/amd64 only.
-# A full from-source multi-arch build (Python + Node UI) under QEMU arm64
-# is slow/flaky and would jeopardise the unattended publish+deploy. The
-# ai-network target runs amd64. arm64 can be added later by extending
-# PLATFORMS if a node needs it — deliberately not gating the deploy on an
-# emulated build.
+# Platforms: linux/amd64 + linux/arm64 (required — deployment targets
+# include both). The from-source multi-arch build (Python + Node UI;
+# arm64 via QEMU) is slow; a generous job timeout + gha cache keep it
+# reliable.
 
 on:
   push:
@@ -25,7 +23,7 @@ on:
       reloaded_version:
         description: "Our semver (suffix after the upstream tag)"
         required: true
-        default: "1.0.0"
+        default: "1.0.1"
 
 permissions:
   contents: read
@@ -34,12 +32,13 @@ permissions:
 env:
   IMAGE: ghcr.io/reloaded/litellm
   UPSTREAM_TAG: v1.83.14-stable.patch.3
-  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.0' }}
-  PLATFORMS: linux/amd64
+  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.1' }}
+  PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
   image:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
