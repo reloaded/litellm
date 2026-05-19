@@ -36,6 +36,7 @@ export function AccessGroupEditModal({
         modelIds: accessGroup.access_model_names ?? [],
         mcpServerIds: accessGroup.access_mcp_server_ids ?? [],
         agentIds: accessGroup.access_agent_ids ?? [],
+        teamIds: accessGroup.assigned_team_ids ?? [],
       });
     }
   }, [visible, accessGroup, form]);
@@ -50,6 +51,7 @@ export function AccessGroupEditModal({
           access_model_names: values.modelIds,
           access_mcp_server_ids: values.mcpServerIds,
           access_agent_ids: values.agentIds,
+          assigned_team_ids: values.teamIds,
         };
 
         editMutation.mutate(
