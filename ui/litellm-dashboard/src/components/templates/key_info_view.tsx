@@ -546,21 +546,18 @@ export default function KeyInfoView({
                   (t) => t.team_id === currentKeyData.team_id,
                 );
                 if (!keyTeam) return null;
-                const op = keyTeam.object_permission;
+                // The Team list type exposes the team's access-group-resolved
+                // grants (not its direct object_permission — that's on
+                // KeyResponse, not Team, and would need a per-team info
+                // fetch; tracked as a follow-up).
                 return (
                   <InheritedPermissionsView
                     sources={[
                       {
                         label: `via team ${keyTeam.team_alias || keyTeam.team_id}`,
-                        mcpServers: [
-                          ...(op?.mcp_servers || []),
-                          ...(keyTeam.access_group_mcp_server_ids || []),
-                        ],
+                        mcpServers: keyTeam.access_group_mcp_server_ids || [],
                         models: keyTeam.access_group_models || [],
-                        agents: [
-                          ...(op?.agents || []),
-                          ...(keyTeam.access_group_agent_ids || []),
-                        ],
+                        agents: keyTeam.access_group_agent_ids || [],
                       },
                     ]}
                   />
