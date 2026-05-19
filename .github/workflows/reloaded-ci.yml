@@ -68,5 +68,9 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Typecheck production source (tsc, tests excluded)
         run: npx tsc --noEmit -p tsconfig.ci.json
-      - name: AccessGroups component tests
-        run: npx vitest run src/components/AccessGroups
+      - name: reloaded UI component tests
+        run: |
+          set -eux
+          PATHS="src/components/AccessGroups"
+          [ -d src/components/InheritedPermissionsView ] && PATHS="$PATHS src/components/InheritedPermissionsView"
+          npx vitest run $PATHS
