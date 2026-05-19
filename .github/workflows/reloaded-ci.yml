@@ -42,7 +42,12 @@ jobs:
         run: |
           pip install -q -e ".[proxy]"
           pip install -q pytest pytest-asyncio respx
-      - name: Targeted MCP access-group auth tests
+      - name: Reloaded downstream tests + targeted MCP auth tests
         run: |
-          python -m pytest -q --no-header -p no:cacheprovider \
-            tests/test_litellm/proxy/_experimental/mcp_server/auth/test_user_api_key_auth_mcp.py
+          set -eux
+          PATHS="tests/test_litellm/proxy/_experimental/mcp_server/auth/test_user_api_key_auth_mcp.py"
+          # tests/reloaded/ holds this fork's own tests, isolated from
+          # upstream test churn. Include it when present (it is added by
+          # the reciprocal-binding workitem onward).
+          [ -d tests/reloaded ] && PATHS="$PATHS tests/reloaded/"
+          python -m pytest -q --no-header -p no:cacheprovider $PATHS
