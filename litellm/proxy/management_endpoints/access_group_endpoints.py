@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import Dict, List, Set
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -163,6 +163,95 @@ async def _sync_remove_access_group_from_keys(
                     ]
                 },
             )
+
+
+# ---------------------------------------------------------------------------
+# Reciprocal sync: team -> access group.
+#
+# Upstream only syncs the access-group -> team direction (the helpers above).
+# When a team's access_group_ids is set from the *team* side (Team Settings
+# UI / /team/update), the access group's assigned_team_ids was never updated,
+# so the MCP auth anti-spoof guard (team_id must appear in
+# access_group.assigned_team_ids) rejected the grant. These helpers keep the
+# reciprocal in sync — multi-tenant-safe, no relaxation. `client` may be a
+# prisma tx or prisma_client.db (both expose .litellm_accessgrouptable).
+# ---------------------------------------------------------------------------
+
+
+async def _sync_add_team_to_access_groups(
+    client, access_group_ids: List[str], team_id: str
+) -> None:
+    """Add team_id to each access group's assigned_team_ids (idempotent)."""
+    for access_group_id in access_group_ids:
+        ag = await client.litellm_accessgrouptable.find_unique(
+            where={"access_group_id": access_group_id}
+        )
+        if ag is not None and team_id not in (ag.assigned_team_ids or []):
+            await client.litellm_accessgrouptable.update(
+                where={"access_group_id": access_group_id},
+                data={
+                    "assigned_team_ids": list(ag.assigned_team_ids or [])
+                    + [team_id]
+                },
+            )
+
+
+async def _sync_remove_team_from_access_groups(
+    client, access_group_ids: List[str], team_id: str
+) -> None:
+    """Remove team_id from each access group's assigned_team_ids (idempotent)."""
+    for access_group_id in access_group_ids:
+        ag = await client.litellm_accessgrouptable.find_unique(
+            where={"access_group_id": access_group_id}
+        )
+        if ag is not None and team_id in (ag.assigned_team_ids or []):
+            await client.litellm_accessgrouptable.update(
+                where={"access_group_id": access_group_id},
+                data={
+                    "assigned_team_ids": [
+                        t
+                        for t in (ag.assigned_team_ids or [])
+                        if t != team_id
+                    ]
+                },
+            )
+
+
+async def reconcile_team_access_group_assignments(prisma_client) -> int:
+    """One-time idempotent backfill of the team -> access-group reciprocal.
+
+    For every team that references access groups via team.access_group_ids,
+    ensure each referenced access group lists the team in assigned_team_ids.
+    Non-destructive: only ADDS missing reciprocals, never removes (so a team
+    legitimately assigned from the access-group side is untouched). Safe to
+    run repeatedly / on every startup. Returns the number of access-group
+    rows updated.
+    """
+    if prisma_client is None:
+        return 0
+
+    teams = await prisma_client.db.litellm_teamtable.find_many()
+    desired: Dict[str, Set[str]] = {}
+    for team in teams:
+        for ag_id in team.access_group_ids or []:
+            desired.setdefault(ag_id, set()).add(team.team_id)
+
+    updated = 0
+    for ag_id, team_ids in desired.items():
+        ag = await prisma_client.db.litellm_accessgrouptable.find_unique(
+            where={"access_group_id": ag_id}
+        )
+        if ag is None:
+            continue
+        current: Set[str] = set(ag.assigned_team_ids or [])
+        missing = team_ids - current
+        if missing:
+            await prisma_client.db.litellm_accessgrouptable.update(
+                where={"access_group_id": ag_id},
+                data={"assigned_team_ids": sorted(current | missing)},
+            )
+            updated += 1
+    return updated
 
 
 # ---------------------------------------------------------------------------
