@@ -40,6 +40,7 @@ import { ModelSelect } from "../ModelSelect/ModelSelect";
 import NotificationsManager from "../molecules/notifications_manager";
 import { fetchMCPAccessGroups } from "../networking";
 import ObjectPermissionsView from "../object_permissions_view";
+import InheritedPermissionsView from "../InheritedPermissionsView/InheritedPermissionsView";
 import NumericalInput from "../shared/numerical_input";
 import VectorStoreSelector from "../vector_store_management/VectorStoreSelector";
 import EditLoggingSettings from "./EditLoggingSettings";
@@ -804,6 +805,17 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
                   objectPermission={info.object_permission}
                   variant="card"
                   accessToken={accessToken}
+                />
+
+                <InheritedPermissionsView
+                  sources={[
+                    {
+                      label: "via Access Groups",
+                      mcpServers: info.access_group_mcp_server_ids || [],
+                      models: info.access_group_models || [],
+                      agents: info.access_group_agent_ids || [],
+                    },
+                  ]}
                 />
 
                 <Card>

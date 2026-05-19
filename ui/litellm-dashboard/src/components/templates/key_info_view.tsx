@@ -20,6 +20,7 @@ import NotificationManager from "../molecules/notifications_manager";
 import { getPolicyInfoWithGuardrails, keyDeleteCall, keyUpdateCall } from "../networking";
 import { useResetKeySpend } from "@/app/(dashboard)/hooks/keys/useResetKeySpend";
 import ObjectPermissionsView from "../object_permissions_view";
+import InheritedPermissionsView from "../InheritedPermissionsView/InheritedPermissionsView";
 import { RegenerateKeyModal } from "../organisms/RegenerateKeyModal";
 import { parseErrorMessage } from "../shared/errorUtils";
 import { KeyEditView } from "./key_edit_view";
@@ -539,6 +540,32 @@ export default function KeyInfoView({
                   accessToken={accessToken}
                 />
               </Card>
+
+              {(() => {
+                const keyTeam = teamsData?.find(
+                  (t) => t.team_id === currentKeyData.team_id,
+                );
+                if (!keyTeam) return null;
+                const op = keyTeam.object_permission;
+                return (
+                  <InheritedPermissionsView
+                    sources={[
+                      {
+                        label: `via team ${keyTeam.team_alias || keyTeam.team_id}`,
+                        mcpServers: [
+                          ...(op?.mcp_servers || []),
+                          ...(keyTeam.access_group_mcp_server_ids || []),
+                        ],
+                        models: keyTeam.access_group_models || [],
+                        agents: [
+                          ...(op?.agents || []),
+                          ...(keyTeam.access_group_agent_ids || []),
+                        ],
+                      },
+                    ]}
+                  />
+                );
+              })()}
 
               <Card>
                 <Text className="font-medium mb-3">Guardrails</Text>
