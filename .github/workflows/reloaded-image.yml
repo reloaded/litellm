@@ -4,7 +4,7 @@ name: reloaded-image
 # from source — so all merged backend + dashboard (Next.js) changes ship.
 #
 # Tag scheme (locked): <upstream-tag>-<our-semver>, e.g.
-#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.4  (+ :latest)
+#   ghcr.io/reloaded/litellm:v1.83.14-stable.patch.3-1.0.5  (+ :latest)
 # The upstream base tag stays in the image tag for provenance; our semver
 # is the downstream version line.
 #
@@ -25,7 +25,7 @@ on:
       reloaded_version:
         description: "Our semver (suffix after the upstream tag)"
         required: true
-        default: "1.0.4"
+        default: "1.0.5"
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ permissions:
 env:
   IMAGE: ghcr.io/reloaded/litellm
   UPSTREAM_TAG: v1.83.14-stable.patch.3
-  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.4' }}
+  RELOADED_VERSION: ${{ github.event.inputs.reloaded_version || '1.0.5' }}
   PLATFORMS: linux/amd64,linux/arm64
 
 jobs:

@@ -3895,6 +3895,48 @@ async def _batch_resolve_access_group_resources(
     return result
 
 
+async def _enrich_teams_with_access_group_resources(team_list: list) -> None:
+    """
+    Populate access_group_models / access_group_mcp_server_ids /
+    access_group_agent_ids on each team in `team_list` by resolving its
+    access_group_ids against the access-group table in a single batched
+    DB query. Mutates objects in-place; items without access_group_ids
+    are left untouched. Items lacking the target attributes are
+    skipped silently.
+
+    Shared by /team/list (v1) and /v2/team/list so the dashboard sees
+    inherited resources regardless of which endpoint the client hit.
+    Without this, /v2/team/list returns the enriched fields but
+    /team/list (which the UI's useTeams() hook ends up calling) does
+    not, so the Inherited Permissions card on the Key/Team Overview
+    silently shows nothing even when the team is bound to an access
+    group with MCP servers, models, or agents.
+    """
+    teams_with_ag = [t for t in team_list if getattr(t, "access_group_ids", None)]
+    if not teams_with_ag:
+        return
+    all_ag_ids = [
+        ag_id
+        for t in teams_with_ag
+        for ag_id in (getattr(t, "access_group_ids", None) or [])
+    ]
+    ag_lookup = await _batch_resolve_access_group_resources(all_ag_ids)
+    for team in teams_with_ag:
+        models, mcp_ids, agent_ids = set(), set(), set()
+        for ag_id in getattr(team, "access_group_ids", None) or []:
+            if ag_id in ag_lookup:
+                models.update(ag_lookup[ag_id]["models"])
+                mcp_ids.update(ag_lookup[ag_id]["mcp_server_ids"])
+                agent_ids.update(ag_lookup[ag_id]["agent_ids"])
+        try:
+            team.access_group_models = list(models)
+            team.access_group_mcp_server_ids = list(mcp_ids)
+            team.access_group_agent_ids = list(agent_ids)
+        except (AttributeError, ValueError):
+            # Response type doesn't declare these fields — skip silently.
+            pass
+
+
 def _convert_teams_to_response_models(
     teams: list,
     use_deleted_table: bool,
@@ -4146,28 +4188,13 @@ async def list_team_v2(
     # Convert Prisma models to response models with members_count
     team_list = _convert_teams_to_response_models(teams, use_deleted_table)
 
-    # Resolve resources inherited from access groups (single batch query)
+    # Resolve resources inherited from access groups (single batch query).
+    # Deleted-table rows are skipped — they carry historical state that we
+    # don't re-resolve.
     if not use_deleted_table:
-        team_items_with_ag = [
-            t for t in team_list if isinstance(t, TeamListItem) and t.access_group_ids
-        ]
-        if team_items_with_ag:
-            all_ag_ids = [
-                ag_id
-                for t in team_items_with_ag
-                for ag_id in (t.access_group_ids or [])
-            ]
-            ag_lookup = await _batch_resolve_access_group_resources(all_ag_ids)
-            for team_item in team_items_with_ag:
-                models, mcp_ids, agent_ids = set(), set(), set()
-                for ag_id in team_item.access_group_ids or []:
-                    if ag_id in ag_lookup:
-                        models.update(ag_lookup[ag_id]["models"])
-                        mcp_ids.update(ag_lookup[ag_id]["mcp_server_ids"])
-                        agent_ids.update(ag_lookup[ag_id]["agent_ids"])
-                team_item.access_group_models = list(models)
-                team_item.access_group_mcp_server_ids = list(mcp_ids)
-                team_item.access_group_agent_ids = list(agent_ids)
+        await _enrich_teams_with_access_group_resources(
+            [t for t in team_list if isinstance(t, TeamListItem)]
+        )
 
     return {
         "teams": team_list,
@@ -4356,6 +4383,12 @@ async def list_team(
                 for team in returned_responses
                 if team.organization_id == organization_id
             ]
+
+    # Resolve resources inherited from access groups, matching what
+    # /v2/team/list returns. The UI's useTeams() hook calls /team/list,
+    # so without this its Inherited Permissions card stays empty even
+    # when the team is bound to an access group with resources.
+    await _enrich_teams_with_access_group_resources(returned_responses)
 
     return returned_responses
 
