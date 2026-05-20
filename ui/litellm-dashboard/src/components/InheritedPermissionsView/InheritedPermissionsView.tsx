@@ -107,7 +107,7 @@ export function InheritedPermissionsView({
 
   return (
     <div
-      className={`bg-white border border-gray-200 rounded-lg p-6 mt-6 ${className}`}
+      className={`bg-white border border-gray-200 rounded-lg p-6 ${className}`}
     >
       <div className="flex items-center gap-2 mb-1">
         <Text className="text-base font-semibold">Inherited Permissions</Text>
