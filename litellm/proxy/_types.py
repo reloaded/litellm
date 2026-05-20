@@ -1953,6 +1953,16 @@ class LiteLLM_TeamTable(TeamBase):
     #########################################################
     object_permission_id: Optional[str] = None
 
+    #########################################################
+    # Inherited resources, resolved from access groups the
+    # team belongs to. Populated by the team-list endpoints
+    # (v1 and v2) so the dashboard can show the Inherited
+    # Permissions card; not persisted to the DB.
+    #########################################################
+    access_group_models: Optional[List[str]] = None
+    access_group_mcp_server_ids: Optional[List[str]] = None
+    access_group_agent_ids: Optional[List[str]] = None
+
     model_config = ConfigDict(protected_namespaces=())
 
     @model_validator(mode="before")
